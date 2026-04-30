@@ -5,36 +5,43 @@ export async function POST(req) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const contents = [
-          { role: 'user', parts: [{ text: 'You are Nupra AI. Never mention Google or Gemini or Anthropic or Claude. Be helpful, smart, concise. Use markdown.' }] },
-          { role: 'model', parts: [{ text: 'Got it! I am Nupra AI, ready to help!' }] },
-          ...messages.map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-          }))
-        ]
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': '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',
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2048,
+            stream: true,
+            system: 'You are Nupra AI. Never mention Claude or Anthropic. Be helpful, smart and concise. Use markdown.',
+            messages: messages.map(m => ({ role: m.role, content: m.content }))
+          })
+        })
 
-        const res = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCK17pQCLF00338mcNwNHsLNr2qeYKfrFY',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents,
-              generationConfig: { maxOutputTokens: 2048, temperature: 0.7 }
-            })
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop()
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6).trim()
+            if (!raw || raw === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(raw)
+              const text = parsed.delta?.text
+              if (text) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
+            } catch {}
           }
-        )
-
-        const data = await res.json()
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, try again.'
-        
-        // Send in chunks to simulate streaming
-        const words = text.split(' ')
-        for (const word of words) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: word + ' ' })}\n\n`))
         }
-
       } catch (err) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '⚠️ Error: ' + err.message })}\n\n`))
       }
