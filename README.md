@@ -1,4 +1,4 @@
-# Nupra AI — Deployment Guide
+# Nupra AI — Deployment Guide 1
 
 ## Step 1: Supabase Setup
 1. supabase.com pe jao → New Project banao
