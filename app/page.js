@@ -68,7 +68,6 @@ export default function Home() {
   const [activeId,setActiveId]=useState('1')
   const [input,setInput]=useState('')
   const [loading,setLoading]=useState(false)
-  const [streaming,setStreaming]=useState('')
   const [sidebarOpen,setSidebarOpen]=useState(true)
   const [searchQ,setSearchQ]=useState('')
   const [searchOpen,setSearchOpen]=useState(false)
@@ -101,10 +100,8 @@ export default function Home() {
     const userMsg={id:Date.now(),role:'user',content:text}
     const conv=getActive()
     const newMsgs=[...(conv?.messages||[]),userMsg]
-
     setConvs(p=>p.map(c=>c.id===activeId?{...c,title:c.title==='New Chat'?text.slice(0,36):c.title,messages:newMsgs}:c))
     setLoading(true)
-    setStreaming('')
 
     try {
       const res=await fetch('/api/chat',{
@@ -113,35 +110,17 @@ export default function Home() {
         body:JSON.stringify({messages:newMsgs.map(m=>({role:m.role,content:m.content}))})
       })
 
-      const reader=res.body.getReader()
-      const decoder=new TextDecoder()
-      let full='',buf=''
-
-      while (true) {
-        const{done,value}=await reader.read()
-        if (done) break
-        buf+=decoder.decode(value,{stream:true})
-        const lines=buf.split('\n')
-        buf=lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw=line.slice(6).trim()
-          if (!raw||raw==='[DONE]') continue
-          try {
-            const parsed=JSON.parse(raw)
-            const t=parsed.text||''
-            if (t){full+=t;setStreaming(full)}
-          } catch(e){}
-        }
+      const data=await res.json()
+      
+      if (data.error) {
+        throw new Error(data.error)
       }
 
-      const aiMsg={id:Date.now()+1,role:'assistant',content:full||'Sorry, try again.'}
+      const aiMsg={id:Date.now()+1,role:'assistant',content:data.text}
       setConvs(p=>p.map(c=>c.id===activeId?{...c,messages:[...newMsgs,aiMsg]}:c))
-      setStreaming('')
     } catch(err){
-      const aiMsg={id:Date.now()+1,role:'assistant',content:'Error: '+err.message}
+      const aiMsg={id:Date.now()+1,role:'assistant',content:'⚠️ Error: '+err.message}
       setConvs(p=>p.map(c=>c.id===activeId?{...c,messages:[...newMsgs,aiMsg]}:c))
-      setStreaming('')
     }
     setLoading(false)
   },[input,msgs,loading,activeId,convs])
@@ -154,7 +133,6 @@ export default function Home() {
         @keyframes bounce{0%,80%,100%{transform:scale(.5);opacity:.3}40%{transform:scale(1);opacity:1}}
         @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,255,200,0.4)}50%{box-shadow:0 0 0 8px rgba(0,255,200,0)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(0,255,200,0.2);border-radius:4px}
         .mrow:hover .macts{opacity:1!important}
       `}</style>
@@ -214,7 +192,7 @@ export default function Home() {
         )}
 
         <div style={{flex:1,overflowY:'auto',padding:'24px 0'}}>
-          {msgs.length===0&&!streaming?(
+          {msgs.length===0&&!loading?(
             <div style={{maxWidth:640,margin:'0 auto',padding:'40px 22px',textAlign:'center'}}>
               <div style={{width:80,height:80,borderRadius:24,margin:'0 auto 24px',background:'linear-gradient(135deg,rgba(0,255,200,0.14),rgba(0,102,255,0.14))',border:'1.5px solid rgba(0,255,200,0.28)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,fontWeight:900,color:G}}>N</div>
               <h1 style={{margin:'0 0 10px',fontSize:28,fontWeight:800,background:`linear-gradient(135deg,#fff 30%,${G})`,WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>Meet Nupra AI</h1>
@@ -248,19 +226,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-              {streaming&&(
-                <div style={{display:'flex',alignItems:'flex-start',gap:11,marginBottom:10}}>
-                  <div style={{width:32,height:32,borderRadius:9,flexShrink:0,marginTop:2,...AvatarAI,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13}}>N</div>
-                  <div style={{maxWidth:'82%'}}>
-                    <div style={{fontSize:10,color:G,fontWeight:700,marginBottom:5,letterSpacing:0.5}}>NUPRA</div>
-                    <div style={{padding:'13px 16px',fontSize:14.5,lineHeight:1.78,borderRadius:'4px 15px 15px 15px',background:'rgba(255,255,255,0.03)',border:`1px solid ${BD}`}}>
-                      <MsgContent text={streaming}/>
-                      <span style={{display:'inline-block',width:2,height:'1em',background:G,marginLeft:2,animation:'blink .7s infinite',verticalAlign:'text-bottom'}}/>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {loading&&!streaming&&(
+              {loading&&(
                 <div style={{display:'flex',alignItems:'flex-start',gap:11,marginBottom:10}}>
                   <div style={{width:32,height:32,borderRadius:9,flexShrink:0,...AvatarAI,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:13}}>N</div>
                   <div>
@@ -276,7 +242,7 @@ export default function Home() {
 
         <div style={{padding:'12px 18px 18px',background:'rgba(8,12,16,.97)',borderTop:`1px solid ${BD}`,flexShrink:0}}>
           <div style={{maxWidth:740,margin:'0 auto'}}>
-            <div style={{display:'flex',alignItems:'flex-end',gap:9,background:'rgba(255,255,255,0.03)',border:'1.5px solid rgba(0,255,200,0.15)',borderRadius:16,padding:'10px 12px',transition:'border-color .2s'}}
+            <div style={{display:'flex',alignItems:'flex-end',gap:9,background:'rgba(255,255,255,0.03)',border:'1.5px solid rgba(0,255,200,0.15)',borderRadius:16,padding:'10px 12px'}}
               onFocusCapture={e=>{e.currentTarget.style.borderColor='rgba(0,255,200,0.4)';e.currentTarget.style.boxShadow='0 0 24px rgba(0,255,200,0.1)'}}
               onBlurCapture={e=>{e.currentTarget.style.borderColor='rgba(0,255,200,0.15)';e.currentTarget.style.boxShadow='none'}}>
               <textarea ref={taRef} value={input}
