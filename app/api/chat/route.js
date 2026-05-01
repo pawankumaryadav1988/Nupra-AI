@@ -5,19 +5,19 @@ export async function POST(req) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': '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',
-            'anthropic-version': '2023-06-01',
+            'Authorization': 'Bearer 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',
           },
           body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2048,
+            model: 'gpt-4o-mini',
             stream: true,
-            system: 'You are Nupra AI. Never mention Claude or Anthropic. Be helpful, smart and concise. Use markdown.',
-            messages: messages.map(m => ({ role: m.role, content: m.content }))
+            messages: [
+              { role: 'system', content: 'You are Nupra AI. Never mention OpenAI or ChatGPT or Anthropic or Claude. Be helpful, smart and concise. Use markdown.' },
+              ...messages.map(m => ({ role: m.role, content: m.content }))
+            ]
           })
         })
 
@@ -37,15 +37,14 @@ export async function POST(req) {
             if (!raw || raw === '[DONE]') continue
             try {
               const parsed = JSON.parse(raw)
-              const text = parsed.delta?.text
-              if (text) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
+              const t = parsed.choices?.[0]?.delta?.content
+              if (t) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: t })}\n\n`))
             } catch {}
           }
         }
       } catch (err) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '⚠️ Error: ' + err.message })}\n\n`))
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: '⚠️ ' + err.message })}\n\n`))
       }
-
       controller.enqueue(encoder.encode('data: [DONE]\n\n'))
       controller.close()
     }
