@@ -1,6 +1,6 @@
 # Nupra AI — Deployment Guide 
 
-## Step 1: Supabase Setup
+## Step 1: Supabase Setup 1
 1. supabase.com pe jao → New Project banao
 2. Project create ho jaye toh **SQL Editor** mein jao
 3. `supabase-schema.sql` ka content paste karke Run karo
